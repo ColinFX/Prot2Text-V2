@@ -267,6 +267,10 @@ def get_description_embeddings(
         output_llm_layer: int = 16,
 ) -> torch.Tensor:
     """Extract embeddings from the Qwen 14B decoder for description text."""
+    print(f"DEBUG: description_input_ids.shape={description_input_ids.shape}")
+    print(f"DEBUG: description_attention_mask.shape={description_attention_mask.shape}")
+    print(f"DEBUG: description_input_ids has NaN: {torch.isnan(description_input_ids.float()).any()}")
+    
     with torch.no_grad():  # WARNING: llm decoder fixed during contrastive training
         qwen_model = model.llm_decoder.model
         
@@ -281,12 +285,17 @@ def get_description_embeddings(
         
         # Extract hidden states from the specified layer
         hidden_states = outputs.hidden_states[output_llm_layer]
+        print(f"DEBUG: hidden_states.shape={hidden_states.shape}")
+        print(f"DEBUG: hidden_states has NaN: {torch.isnan(hidden_states).any()}")
 
-    return readout_embeddings(
+    result = readout_embeddings(
         embeddings=hidden_states,
         attention_mask=description_attention_mask,
         readout_fn="mix"
     )  # (bsz, decoder_hidden_size)
+    
+    print(f"DEBUG: readout result has NaN: {torch.isnan(result).any()}")
+    return result
 
 
 def teacher_forcing_forward_pass(
