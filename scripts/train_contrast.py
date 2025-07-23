@@ -225,10 +225,16 @@ def readout_embeddings(
         diff_embeddings = embeddings - mean_embeddings.unsqueeze(1)
             # (bsz, text_len, hidden_dim)
         print(f"DEBUG READOUT: diff_embeddings has_nan={torch.isnan(diff_embeddings).any()}")
+        print(f"DEBUG READOUT: diff_embeddings min/max = {diff_embeddings.min().item():.6f} / {diff_embeddings.max().item():.6f}")
         
         diff_embeddings_2 = diff_embeddings.pow(2) 
         print(f"DEBUG READOUT: diff_embeddings_2 has_nan={torch.isnan(diff_embeddings_2).any()}")
+        print(f"DEBUG READOUT: diff_embeddings_2 min/max = {diff_embeddings_2.min().item():.6f} / {diff_embeddings_2.max().item():.6f}")
         
+        # Check for extremely large values that might cause overflow
+        if diff_embeddings_2.max() > 1e10:
+            print(f"DEBUG READOUT: WARNING - Very large values in diff_embeddings_2!")
+            
         masked_diff_embeddings_2 = diff_embeddings_2 * attention_mask.unsqueeze(-1)
         print(f"DEBUG READOUT: masked_diff_embeddings_2 has_nan={torch.isnan(masked_diff_embeddings_2).any()}")
         
@@ -327,7 +333,7 @@ def get_description_embeddings(
         )
         
         # Extract hidden states from the specified layer
-        hidden_states = outputs.hidden_states[output_llm_layer]
+        hidden_states = outputs.hidden_states[output_llm_layer].detach()  # Ensure no gradients
         print(f"DEBUG DESCRIPTION: hidden_states.shape={hidden_states.shape}, has_nan={torch.isnan(hidden_states).any()}")
 
     result = readout_embeddings(
@@ -335,6 +341,11 @@ def get_description_embeddings(
         attention_mask=description_attention_mask,
         readout_fn="mix"
     )  # (bsz, decoder_hidden_size)
+    
+    # Safety check: replace any NaNs with zeros
+    if torch.isnan(result).any():
+        print("DEBUG DESCRIPTION: WARNING - NaNs detected in result, replacing with zeros")
+        result = torch.where(torch.isnan(result), torch.zeros_like(result), result)
     
     print(f"DEBUG DESCRIPTION: final result has_nan={torch.isnan(result).any()}")
     return result
