@@ -324,6 +324,9 @@ def teacher_forcing_forward_pass(
     acc_loss = torch.zeros([]).to(rank)
     loss_fn = SegmentedBatchInfoNCELoss()
 
+    # Debug: Print batch info
+    print(f"DEBUG: batch_size={batch_size}, segment_size={segment_size}, contrastive_num_segments={contrastive_num_segments}")
+
     with torch.no_grad():  # WARNING: llama decoder fixed
         description_output = get_description_embeddings(
             base_model,  
