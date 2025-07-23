@@ -183,6 +183,10 @@ def readout_embeddings(
     Perform a readout operation on the output sequence embeddings of the forward 
     pass, given the attention mask. 
     """
+    # Debug: Check input tensors
+    print(f"DEBUG READOUT: embeddings.shape={embeddings.shape}, has_nan={torch.isnan(embeddings).any()}")
+    print(f"DEBUG READOUT: attention_mask.shape={attention_mask.shape}, has_nan={torch.isnan(attention_mask.float()).any()}")
+    
     if readout_fn == "last":
         # inputs must be right padded
         # for left padding simply take the last token and do not use this function
@@ -191,14 +195,24 @@ def readout_embeddings(
             attention_mask.size(0), 
             device=attention_mask.device
         )  # (bsz,)
-        return embeddings[batch_indices, last_token_indices, :]  # (bsz, hidden_dim)
+        result = embeddings[batch_indices, last_token_indices, :]  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: last result has_nan={torch.isnan(result).any()}")
+        return result
 
     elif readout_fn == "mean":
         masked_embeddings = embeddings * attention_mask.unsqueeze(-1)
+        print(f"DEBUG READOUT: masked_embeddings has_nan={torch.isnan(masked_embeddings).any()}")
+        
         sum_embeddings = masked_embeddings.sum(dim=1)  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: sum_embeddings has_nan={torch.isnan(sum_embeddings).any()}")
+        
         count_attn_mask = attention_mask.sum(dim=1, keepdim=True)  # (bsz, 1)
+        print(f"DEBUG READOUT: count_attn_mask={count_attn_mask.squeeze()}")
+        
         # Prevent division by zero
-        return sum_embeddings / count_attn_mask.clamp(min=1)  # (bsz, hidden_dim)
+        result = sum_embeddings / count_attn_mask.clamp(min=1)  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: mean result has_nan={torch.isnan(result).any()}")
+        return result
     
     elif readout_fn == "std":
         mean_embeddings = readout_embeddings(
@@ -206,28 +220,51 @@ def readout_embeddings(
             attention_mask=attention_mask, 
             readout_fn="mean"
         )  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: mean_embeddings for std has_nan={torch.isnan(mean_embeddings).any()}")
+        
         diff_embeddings = embeddings - mean_embeddings.unsqueeze(1)
             # (bsz, text_len, hidden_dim)
+        print(f"DEBUG READOUT: diff_embeddings has_nan={torch.isnan(diff_embeddings).any()}")
+        
         diff_embeddings_2 = diff_embeddings.pow(2) 
+        print(f"DEBUG READOUT: diff_embeddings_2 has_nan={torch.isnan(diff_embeddings_2).any()}")
+        
         masked_diff_embeddings_2 = diff_embeddings_2 * attention_mask.unsqueeze(-1)
+        print(f"DEBUG READOUT: masked_diff_embeddings_2 has_nan={torch.isnan(masked_diff_embeddings_2).any()}")
+        
         sum_diff_embeddings_2 = masked_diff_embeddings_2.sum(dim=1)  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: sum_diff_embeddings_2 has_nan={torch.isnan(sum_diff_embeddings_2).any()}")
+        
         count_attn_mask = attention_mask.sum(dim=1, keepdim=True)  # (bsz, 1)
+        print(f"DEBUG READOUT: count_attn_mask for std={count_attn_mask.squeeze()}")
+        
         # Add small epsilon to prevent sqrt(0) and division by 0
         variance = sum_diff_embeddings_2 / count_attn_mask.clamp(min=1)
-        return (variance + 1e-8).sqrt()  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: variance has_nan={torch.isnan(variance).any()}")
+        
+        result = (variance + 1e-8).sqrt()  # (bsz, hidden_dim)
+        print(f"DEBUG READOUT: std result has_nan={torch.isnan(result).any()}")
+        return result
 
     elif readout_fn == "mix": 
+        print("DEBUG READOUT: Computing mix (mean + std)")
         mean_embeddings = readout_embeddings(
             embeddings=embeddings, 
             attention_mask=attention_mask, 
             readout_fn="mean"
         )
+        print(f"DEBUG READOUT: mean_embeddings for mix has_nan={torch.isnan(mean_embeddings).any()}")
+        
         std_embeddings = readout_embeddings(
             embeddings=embeddings, 
             attention_mask=attention_mask, 
             readout_fn="std"
         )
-        return torch.cat([mean_embeddings, std_embeddings], dim=1)  # (bsz, 2 * hidden_dim)
+        print(f"DEBUG READOUT: std_embeddings for mix has_nan={torch.isnan(std_embeddings).any()}")
+        
+        result = torch.cat([mean_embeddings, std_embeddings], dim=1)  # (bsz, 2 * hidden_dim)
+        print(f"DEBUG READOUT: mix result has_nan={torch.isnan(result).any()}")
+        return result
 
 
 def get_sequence_embeddings(
@@ -247,6 +284,7 @@ def get_sequence_embeddings(
     )
 
     adapter_output = encoder_output[0]  # (bsz, max_seq_len, decoder_hidden_size)
+    print(f"DEBUG SEQUENCE: adapter_output.shape={adapter_output.shape}, has_nan={torch.isnan(adapter_output).any()}")
     
     # Create attention mask based on sequence lengths (all positions are valid for raw sequences)
     batch_size, seq_len = adapter_output.shape[:2]
@@ -255,12 +293,16 @@ def get_sequence_embeddings(
         dtype=torch.long, 
         device=adapter_output.device
     )
+    print(f"DEBUG SEQUENCE: attention_mask.shape={attention_mask.shape}")
 
-    return readout_embeddings(
+    result = readout_embeddings(
         embeddings=adapter_output, 
         attention_mask=attention_mask, 
         readout_fn="mix"
     )  # (bsz, decoder_hidden_size)
+    print(f"DEBUG SEQUENCE: final result has_nan={torch.isnan(result).any()}")
+    
+    return result
 
 
 def get_description_embeddings(
@@ -270,6 +312,8 @@ def get_description_embeddings(
         output_llm_layer: int = 16,
 ) -> torch.Tensor:
     """Extract embeddings from the Qwen 14B decoder for description text."""
+    print(f"DEBUG DESCRIPTION: Starting get_description_embeddings")
+    
     with torch.no_grad():  # WARNING: llm decoder fixed during contrastive training
         qwen_model = model.llm_decoder.model
         
@@ -284,6 +328,7 @@ def get_description_embeddings(
         
         # Extract hidden states from the specified layer
         hidden_states = outputs.hidden_states[output_llm_layer]
+        print(f"DEBUG DESCRIPTION: hidden_states.shape={hidden_states.shape}, has_nan={torch.isnan(hidden_states).any()}")
 
     result = readout_embeddings(
         embeddings=hidden_states,
@@ -291,6 +336,7 @@ def get_description_embeddings(
         readout_fn="mix"
     )  # (bsz, decoder_hidden_size)
     
+    print(f"DEBUG DESCRIPTION: final result has_nan={torch.isnan(result).any()}")
     return result
 
 
