@@ -183,10 +183,6 @@ def readout_embeddings(
     Perform a readout operation on the output sequence embeddings of the forward 
     pass, given the attention mask. 
     """
-    # Debug: Check input tensors
-    print(f"DEBUG READOUT: embeddings.shape={embeddings.shape}, has_nan={torch.isnan(embeddings).any()}")
-    print(f"DEBUG READOUT: attention_mask.shape={attention_mask.shape}, has_nan={torch.isnan(attention_mask.float()).any()}")
-    
     if readout_fn == "last":
         # inputs must be right padded
         # for left padding simply take the last token and do not use this function
@@ -196,22 +192,14 @@ def readout_embeddings(
             device=attention_mask.device
         )  # (bsz,)
         result = embeddings[batch_indices, last_token_indices, :]  # (bsz, hidden_dim)
-        print(f"DEBUG READOUT: last result has_nan={torch.isnan(result).any()}")
         return result
 
     elif readout_fn == "mean":
         masked_embeddings = embeddings * attention_mask.unsqueeze(-1)
-        print(f"DEBUG READOUT: masked_embeddings has_nan={torch.isnan(masked_embeddings).any()}")
-        
         sum_embeddings = masked_embeddings.sum(dim=1)  # (bsz, hidden_dim)
-        print(f"DEBUG READOUT: sum_embeddings has_nan={torch.isnan(sum_embeddings).any()}")
-        
         count_attn_mask = attention_mask.sum(dim=1, keepdim=True)  # (bsz, 1)
-        print(f"DEBUG READOUT: count_attn_mask={count_attn_mask.squeeze()}")
-        
         # Prevent division by zero
         result = sum_embeddings / count_attn_mask.clamp(min=1)  # (bsz, hidden_dim)
-        print(f"DEBUG READOUT: mean result has_nan={torch.isnan(result).any()}")
         return result
     
     elif readout_fn == "std":
@@ -220,56 +208,32 @@ def readout_embeddings(
             attention_mask=attention_mask, 
             readout_fn="mean"
         )  # (bsz, hidden_dim)
-        print(f"DEBUG READOUT: mean_embeddings for std has_nan={torch.isnan(mean_embeddings).any()}")
         
         diff_embeddings = embeddings - mean_embeddings.unsqueeze(1)
             # (bsz, text_len, hidden_dim)
-        print(f"DEBUG READOUT: diff_embeddings has_nan={torch.isnan(diff_embeddings).any()}")
-        print(f"DEBUG READOUT: diff_embeddings min/max = {diff_embeddings.min().item():.6f} / {diff_embeddings.max().item():.6f}")
         
         diff_embeddings_2 = diff_embeddings.pow(2) 
-        print(f"DEBUG READOUT: diff_embeddings_2 has_nan={torch.isnan(diff_embeddings_2).any()}")
-        print(f"DEBUG READOUT: diff_embeddings_2 min/max = {diff_embeddings_2.min().item():.6f} / {diff_embeddings_2.max().item():.6f}")
-        
-        # Check for extremely large values that might cause overflow
-        if diff_embeddings_2.max() > 1e10:
-            print(f"DEBUG READOUT: WARNING - Very large values in diff_embeddings_2!")
-            
         masked_diff_embeddings_2 = diff_embeddings_2 * attention_mask.unsqueeze(-1)
-        print(f"DEBUG READOUT: masked_diff_embeddings_2 has_nan={torch.isnan(masked_diff_embeddings_2).any()}")
-        
         sum_diff_embeddings_2 = masked_diff_embeddings_2.sum(dim=1)  # (bsz, hidden_dim)
-        print(f"DEBUG READOUT: sum_diff_embeddings_2 has_nan={torch.isnan(sum_diff_embeddings_2).any()}")
-        
         count_attn_mask = attention_mask.sum(dim=1, keepdim=True)  # (bsz, 1)
-        print(f"DEBUG READOUT: count_attn_mask for std={count_attn_mask.squeeze()}")
         
         # Add small epsilon to prevent sqrt(0) and division by 0
         variance = sum_diff_embeddings_2 / count_attn_mask.clamp(min=1)
-        print(f"DEBUG READOUT: variance has_nan={torch.isnan(variance).any()}")
-        
         result = (variance + 1e-8).sqrt()  # (bsz, hidden_dim)
-        print(f"DEBUG READOUT: std result has_nan={torch.isnan(result).any()}")
         return result
 
     elif readout_fn == "mix": 
-        print("DEBUG READOUT: Computing mix (mean + std)")
         mean_embeddings = readout_embeddings(
             embeddings=embeddings, 
             attention_mask=attention_mask, 
             readout_fn="mean"
         )
-        print(f"DEBUG READOUT: mean_embeddings for mix has_nan={torch.isnan(mean_embeddings).any()}")
-        
         std_embeddings = readout_embeddings(
             embeddings=embeddings, 
             attention_mask=attention_mask, 
             readout_fn="std"
         )
-        print(f"DEBUG READOUT: std_embeddings for mix has_nan={torch.isnan(std_embeddings).any()}")
-        
         result = torch.cat([mean_embeddings, std_embeddings], dim=1)  # (bsz, 2 * hidden_dim)
-        print(f"DEBUG READOUT: mix result has_nan={torch.isnan(result).any()}")
         return result
 
 
@@ -278,7 +242,7 @@ def get_sequence_embeddings(
         protein_sequences: list,
 ) -> torch.Tensor:
     """
-    Take mean pooling and the std pooling of the adapter outputs for each valid 
+    Take mean pooling of the adapter outputs for each valid 
     token in the sequence as the sequence embedding for contrastive learning. 
 
     protein_sequences: List of raw protein sequences
@@ -301,11 +265,18 @@ def get_sequence_embeddings(
     )
     print(f"DEBUG SEQUENCE: attention_mask.shape={attention_mask.shape}")
 
+    # Use only mean pooling to avoid std computation issues
     result = readout_embeddings(
         embeddings=adapter_output, 
         attention_mask=attention_mask, 
-        readout_fn="mix"
+        readout_fn="mean"  # Changed from "mix" to "mean" only
     )  # (bsz, decoder_hidden_size)
+    
+    # Safety check: replace any NaNs with zeros  
+    if torch.isnan(result).any():
+        print("DEBUG SEQUENCE: WARNING - NaNs detected in result, replacing with zeros")
+        result = torch.where(torch.isnan(result), torch.zeros_like(result), result)
+    
     print(f"DEBUG SEQUENCE: final result has_nan={torch.isnan(result).any()}")
     
     return result
@@ -319,7 +290,7 @@ def get_description_embeddings(
 ) -> torch.Tensor:
     """Extract embeddings from the Qwen 14B decoder for description text."""
     print(f"DEBUG DESCRIPTION: Starting get_description_embeddings")
-    
+
     with torch.no_grad():  # WARNING: llm decoder fixed during contrastive training
         qwen_model = model.llm_decoder.model
         
@@ -336,10 +307,11 @@ def get_description_embeddings(
         hidden_states = outputs.hidden_states[output_llm_layer].detach()  # Ensure no gradients
         print(f"DEBUG DESCRIPTION: hidden_states.shape={hidden_states.shape}, has_nan={torch.isnan(hidden_states).any()}")
 
+    # Use only mean pooling to avoid std computation issues
     result = readout_embeddings(
         embeddings=hidden_states,
         attention_mask=description_attention_mask,
-        readout_fn="mix"
+        readout_fn="mean"  # Changed from "mix" to "mean" only
     )  # (bsz, decoder_hidden_size)
     
     # Safety check: replace any NaNs with zeros
@@ -409,8 +381,7 @@ def teacher_forcing_forward_pass(
         segment_protein_output = torch.nn.functional.normalize(segment_protein_output, p=2, dim=-1)
         
         # Debug: Check tensor shapes and values
-        print(f"DEBUG: segment_id={segment_id}, segment_protein_output.shape={segment_protein_output.shape}")
-        print(f"DEBUG: description_output.shape={description_output.shape}")
+        print(f"DEBUG: segment_id={segment_id}")
         print(f"DEBUG: segment_protein_output has NaN: {torch.isnan(segment_protein_output).any()}")
         print(f"DEBUG: description_output has NaN: {torch.isnan(description_output).any()}")
         
@@ -419,8 +390,6 @@ def teacher_forcing_forward_pass(
             (segment_id + 1) * segment_size, 
             device=rank
         )
-        
-        print(f"DEBUG: labels={labels}")
 
         segment_loss = loss_fn(
             segment_output1=segment_protein_output, 
