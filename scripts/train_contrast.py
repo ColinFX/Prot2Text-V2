@@ -346,17 +346,28 @@ def teacher_forcing_forward_pass(
         )
         segment_protein_output = torch.nn.functional.normalize(segment_protein_output, p=2, dim=-1)
         
+        # Debug: Check tensor shapes and values
+        print(f"DEBUG: segment_id={segment_id}, segment_protein_output.shape={segment_protein_output.shape}")
+        print(f"DEBUG: description_output.shape={description_output.shape}")
+        print(f"DEBUG: segment_protein_output has NaN: {torch.isnan(segment_protein_output).any()}")
+        print(f"DEBUG: description_output has NaN: {torch.isnan(description_output).any()}")
+        
         labels = torch.arange(
             segment_id * segment_size, 
             (segment_id + 1) * segment_size, 
             device=rank
         )
+        
+        print(f"DEBUG: labels={labels}")
 
-        acc_loss += loss_fn(
+        segment_loss = loss_fn(
             segment_output1=segment_protein_output, 
             batch_output2=description_output, 
             labels=labels
         )
+        
+        print(f"DEBUG: segment_loss={segment_loss.item()}")
+        acc_loss += segment_loss
 
     return acc_loss / contrastive_num_segments
 
