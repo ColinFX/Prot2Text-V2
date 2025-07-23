@@ -197,7 +197,8 @@ def readout_embeddings(
         masked_embeddings = embeddings * attention_mask.unsqueeze(-1)
         sum_embeddings = masked_embeddings.sum(dim=1)  # (bsz, hidden_dim)
         count_attn_mask = attention_mask.sum(dim=1, keepdim=True)  # (bsz, 1)
-        return sum_embeddings / count_attn_mask  # (bsz, hidden_dim)
+        # Prevent division by zero
+        return sum_embeddings / count_attn_mask.clamp(min=1)  # (bsz, hidden_dim)
     
     elif readout_fn == "std":
         mean_embeddings = readout_embeddings(
@@ -211,7 +212,9 @@ def readout_embeddings(
         masked_diff_embeddings_2 = diff_embeddings_2 * attention_mask.unsqueeze(-1)
         sum_diff_embeddings_2 = masked_diff_embeddings_2.sum(dim=1)  # (bsz, hidden_dim)
         count_attn_mask = attention_mask.sum(dim=1, keepdim=True)  # (bsz, 1)
-        return (sum_diff_embeddings_2 / count_attn_mask).sqrt()  # (bsz, hidden_dim)
+        # Add small epsilon to prevent sqrt(0) and division by 0
+        variance = sum_diff_embeddings_2 / count_attn_mask.clamp(min=1)
+        return (variance + 1e-8).sqrt()  # (bsz, hidden_dim)
 
     elif readout_fn == "mix": 
         mean_embeddings = readout_embeddings(
@@ -267,10 +270,6 @@ def get_description_embeddings(
         output_llm_layer: int = 16,
 ) -> torch.Tensor:
     """Extract embeddings from the Qwen 14B decoder for description text."""
-    print(f"DEBUG: description_input_ids.shape={description_input_ids.shape}")
-    print(f"DEBUG: description_attention_mask.shape={description_attention_mask.shape}")
-    print(f"DEBUG: description_input_ids has NaN: {torch.isnan(description_input_ids.float()).any()}")
-    
     with torch.no_grad():  # WARNING: llm decoder fixed during contrastive training
         qwen_model = model.llm_decoder.model
         
@@ -285,8 +284,6 @@ def get_description_embeddings(
         
         # Extract hidden states from the specified layer
         hidden_states = outputs.hidden_states[output_llm_layer]
-        print(f"DEBUG: hidden_states.shape={hidden_states.shape}")
-        print(f"DEBUG: hidden_states has NaN: {torch.isnan(hidden_states).any()}")
 
     result = readout_embeddings(
         embeddings=hidden_states,
@@ -294,7 +291,6 @@ def get_description_embeddings(
         readout_fn="mix"
     )  # (bsz, decoder_hidden_size)
     
-    print(f"DEBUG: readout result has NaN: {torch.isnan(result).any()}")
     return result
 
 
