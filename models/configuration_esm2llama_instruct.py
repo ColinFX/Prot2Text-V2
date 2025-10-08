@@ -4,7 +4,7 @@ Configuration class for the assembled Esm2LlamaInstructForCausalLM model.
 Esm2LlamaInstructConfig = EsmConfig + ModalityAdapterConfig + LlamaConfig
 """
 
-
+from typing import Dict, Optional, Union
 from transformers import EsmConfig, LlamaConfig, PretrainedConfig
 
 
@@ -37,15 +37,28 @@ class Esm2LlamaInstructConfig(PretrainedConfig):
     def __init__(
             self, 
             # model components
-            esm_config: EsmConfig, 
-            adapter_config: ModalityAdapterConfig,
-            llama_config: LlamaConfig, 
+            esm_config: Optional[Union[EsmConfig, Dict]] = None, 
+            adapter_config: Optional[Union[ModalityAdapterConfig, Dict]] = None,
+            llama_config: Optional[Union[LlamaConfig, Dict]] = None, 
             # standalone attributes
             placeholder_id: int = 128003, 
             **kwargs
     ):
         super().__init__(**kwargs)
-        self.esm_config = esm_config
-        self.adapter_config = adapter_config
-        self.llama_config = llama_config
+        
+        if isinstance(esm_config, dict):
+            self.esm_config = EsmConfig(**esm_config)
+        else:
+            self.esm_config = esm_config
+            
+        if isinstance(llama_config, dict):
+            self.llama_config = LlamaConfig(**llama_config)
+        else:
+            self.llama_config = llama_config
+            
+        if isinstance(adapter_config, dict):
+            self.adapter_config = ModalityAdapterConfig(**adapter_config)
+        else:
+            self.adapter_config = adapter_config
+            
         self.placeholder_id = placeholder_id

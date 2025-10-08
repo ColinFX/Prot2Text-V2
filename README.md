@@ -1,30 +1,55 @@
 # Prot2Text-V2: Protein Function Prediction with Multimodal Contrastive Alignment
 
-Code repository for paper: *Prot2Text-V2: Protein Function Prediction with Multimodal Contrastive Alignment*. 
+<div align="center">
+<img src="https://img.shields.io/badge/--Transformers-ff9d0b.svg" alt="transformers">
+<img src="https://img.shields.io/badge/Base-ESM--2-0082fb.svg" alt="based-on-esm">
+<img src="https://img.shields.io/badge/Base-LLAMA--3.1-0082fb.svg" alt="based-on-llama">
+<img src="https://img.shields.io/badge/--AI4Biology-green.svg" alt="ai4biology">
+<img src="https://img.shields.io/badge/License-MIT-darkgrey.svg" alt="license-mit">
+</div>
 
-## Overview
+<div align="center">
+| <a href="https://arxiv.org/abs/2505.11194">📃 Preprint</a> |
+<a href="https://neurips.cc/virtual/2025/poster/115368">📜 NeurIPS</a> |
+<a href="https://huggingface.co/xiao-fei/Prot2Text-V2-11B-Instruct-hf">🤗 Model</a> |
+<a href="https://huggingface.co/datasets/habdine/Prot2Text-Data">🤗 Dataset</a> |
+</div>
 
-![Model Architecture](./figures/model.png)
+<br>
 
-![Training Process](./figures/training.png)
+This is the official repository for the paper "**Prot2Text-V2: Protein Function Prediction with Multimodal Contrastive Alignment**" by Xiao Fei, Michail Chatzianastasis, Sarah Almeida Carneiro, Hadi Abdine, Lawrence P. Petalidis, and Michalis Vazirgiannis.
 
-### Instruct Model Composition
+We're excited to share that our paper has been accepted to **NeurIPS 2025**! The pretrained model weights and the dataset are now publicly available on Hugging Face.
 
-This repository provides **contrastive learning** and **supervised fine-tuning (SFT) with instruction tuning** for **protein function prediction** using the `Esm2LlamaInstructForCausalLM` model.
+## About the Project
 
-The instruction-based model consists of:
+Proteins are written in a code made of amino acids, but what if we could actually read that code like a language? 
 
-* `esm2_t36_3B_UR50D` – A protein sequence encoder that processes input protein sequences.
-* `ModalityAdapter` – Bridges the gap between protein embeddings and the language model by transforming the protein sequence representations into a format compatible with the language decoder.
-* `Meta-Llama-3.1-8B-Instruct-hf` – A language decoder that generates textual descriptions based on the processed protein data.
+**Prot2Text-V2** treats a protein sequence as if it were another language, and then translate it into English. The model takes the raw amino acid sequence as inpout and generates a clear, human-readable paragraph describing what the protein does. 
 
-### Legacy Model Support
+<div align="center">
+<img src="./figures/model.png" alt="Model Architecture" width="95%"/>
+</div>
 
-The repository also includes a legacy base model, `Esm2LlamaForCausalLM`, which was carried over from previous projects. A specialized dataloader is available for working with this legacy model.
+The instruction-based Prot2Text-V2 model is an innovative fusion of three key components: 
 
-## Environment Installation
+* Protein language model as sequence encoder: `facebook/esm2_t36_3B_UR50D`
+* Modality adapter as a unique and lightweight component that bridges the gap between protein embeddings and the language model. 
+* Natural language decoder for generating articulate textual descriptions utilizing the sequence embeddings: `meta-llama/Llama-3.1-8B-Instruct`
 
-✓ Verified on Ubuntu-22.04 with NVIDIA RTX A6000
+<div align="center">
+<img src="./figures/training.png" alt="Training Stages" width="85%"/>
+</div>
+
+A clever alignment step first captures the semantic meaning of the sequence, after which  supervised fine-tuning trains the decoder to generate articulate descriptions. 
+
+For backward compatibility, the repository also includes our legacy base model, `Esm2LlamaForCausalLM`, along with its specialized dataloader.
+
+## Getting Started
+
+✅ Verified on Ubuntu-22.04-LTS with 2 x NVIDIA RTX A6000
+
+✅ Verified on RHEL-9.4 with 8 x NVIDIA A100 
 
 * Install NVIDIA `cuda-toolkit=12.1.1`, see official website for detailed information. 
 
