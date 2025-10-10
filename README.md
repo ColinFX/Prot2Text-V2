@@ -1,10 +1,10 @@
 # Prot2Text-V2: Protein Function Prediction with Multimodal Contrastive Alignment
 
 <div align="center">
-<img src="https://img.shields.io/badge/--Transformers-ff9d0b.svg" alt="transformers">
+<img src="https://img.shields.io/badge/Transformers-ff9d0b.svg" alt="transformers">
 <img src="https://img.shields.io/badge/Base-ESM--2-0082fb.svg" alt="based-on-esm">
 <img src="https://img.shields.io/badge/Base-LLAMA--3.1-0082fb.svg" alt="based-on-llama">
-<img src="https://img.shields.io/badge/--AI4Biology-green.svg" alt="ai4biology">
+<img src="https://img.shields.io/badge/AI4Biology-green.svg" alt="ai4biology">
 <img src="https://img.shields.io/badge/License-MIT-darkgrey.svg" alt="license-mit">
 </div>
 
@@ -25,7 +25,7 @@ We're excited to share that our paper has been accepted to **NeurIPS 2025**! The
 
 Proteins are written in a code made of amino acids, but what if we could actually read that code like a language? 
 
-**Prot2Text-V2** treats a protein sequence as if it were another language, and then translate it into English. The model takes the raw amino acid sequence as inpout and generates a clear, human-readable paragraph describing what the protein does. 
+**Prot2Text-V2** treats a protein sequence as if it were another language, and then translate it into English. The model takes the raw amino acid sequence as input and generates a clear, human-readable paragraph describing what the protein does. 
 
 <div align="center">
 <img src="./figures/model.png" alt="Model Architecture" width="95%"/>
@@ -86,56 +86,6 @@ For backward compatibility, the repository also includes our legacy base model, 
     pip3 install nltk==3.8.1 rouge_score==0.1.2 jiwer==3.0.4
     ```
 
-## Repository Outline
-
-### `/dataset` (Dataset Handling)
-
-* `./dataset.py`: [`Prot2TextInstructDataset`]
-
-    * Prepares the SwissProt dataset (a curated protein database) for training using an instruction-based model.
-    * Loads the preprocessed dataset for use with either the instruction-based model or the standard (base) model.
-
-* `./dataloader.py`: [`Prot2TextInstructDataLoader`]
-    
-    * Works alongside `Prot2TextInstructDataset` to handle data loading.
-    * Formats data into batches using a chat-style template, making it suitable for instruction-based models.
-
-### `/models` (Model Configuration and Architecture)
-
-* `./configuration_esm2llama_instruct.py`: [`Esm2LlamaInstructConfig`]
-
-    * Defines the standard configuration settings for the instruction-based model.
-
-* `./modeling_esm2llama_instruct.py`: [`Esm2LlamaInstructForCausalLM`]
-
-    * Implements the actual instruction-based model, using the configuration defined in `Esm2LlamaInstructConfig`.
-
-* `./configuration_esm2llama_legacy.py`: [`Esm2LlamaConfig`]
-
-    * Defines the standard configuration settings for the legacy base model (non-instruction-based).
-
-* `./modeling_esm2llama_legacy.py`: [`Esm2LlamaForCausalLM`]
-
-    * Implements the legacy base model, using the configuration defined in `Esm2LlamaConfig`.
-
-### `/scripts` (Training and Evaluation Scripts)
-
-* `./train_contrast.py`: 
-
-    * Contrastive Learning - Stage 1 of instruction model training. 
-    * Trains the instruction-based model by learning to differentiate between good and bad outputs.
-
-* `./train_instruct.py`: 
-
-    * Instruction Tuning - Stage 2 of instruction model training. 
-    * Further trains the instruction-based model by fine-tuning it on instruction-response data.
-
-* `./train_legacy.py`: 
-
-    * Supervised Fine-Tuning for the legacy Model. 
-    * Trains the legacy base model using standard supervised learning techniques.
-
-
 ## Dataset Preparation
 
 * Download CSV files from [HuggingFace](https://huggingface.co/datasets/habdine/Prot2Text-Data) and place under `./data`.  
@@ -149,8 +99,8 @@ from dataset import Prot2TextInstructDataset
 SPLIT = "train"  # run script for "eval" and "test" as well
 CSV_DIR = "./data"
 DATA_ROOT_DIR = "/data/Prot2Text-Llama3-Data"
-LLAMA_DIR = "/data/Meta-Llama-3.1-8B-Instruct-hf"
-ESM_DIR = "/datadisk/esm2_t36_3B_UR50D"
+LLAMA_DIR = "meta-llama/Meta-Llama-3.1-8B-Instruct-hf"
+ESM_DIR = "facebook/esm2_t36_3B_UR50D"
 
 split_dataset = Prot2TextInstructDataset(
     root_dir=os.path.join(DATA_ROOT_DIR, SPLIT),
@@ -259,3 +209,19 @@ Evaluates generated outputs using various metrics.
 4. Debug arguments allow for faster iteration during development
 
 The pipeline supports both full fine-tuning and parameter-efficient approaches (LoRA, adapter layers) through the various adapter-related arguments.
+
+## Ⓒ Citation
+
+If you find our research helpful, feel free to 🖋️ cite our work or ⭐️ star the repository: 
+
+```bibtex
+@misc{prot2textv2,
+      title={Prot2Text-V2: Protein Function Prediction with Multimodal Contrastive Alignment}, 
+      author={Xiao Fei and Michail Chatzianastasis and Sarah Almeida Carneiro and Hadi Abdine and Lawrence P. Petalidis and Michalis Vazirgiannis},
+      year={2025},
+      eprint={2505.11194},
+      archivePrefix={arXiv},
+      primaryClass={cs.CE},
+      url={https://arxiv.org/abs/2505.11194}, 
+}
+```
