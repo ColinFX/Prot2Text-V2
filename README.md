@@ -11,6 +11,7 @@
 <div align="center">
 | <a href="https://arxiv.org/abs/2505.11194">📃 Preprint</a> |
 <a href="https://neurips.cc/virtual/2025/poster/115368">📜 NeurIPS</a> |
+<a href="https://huggingface.co/spaces/habdine/Prot2Text-V2">🤗 Server</a> |
 <a href="https://huggingface.co/xiao-fei/Prot2Text-V2-11B-Instruct-hf">🤗 Model</a> |
 <a href="https://huggingface.co/datasets/habdine/Prot2Text-Data">🤗 Dataset</a> |
 </div>
@@ -19,7 +20,7 @@
 
 This is the official repository for the paper "**Prot2Text-V2: Protein Function Prediction with Multimodal Contrastive Alignment**" by Xiao Fei, Michail Chatzianastasis, Sarah Almeida Carneiro, Hadi Abdine, Lawrence P. Petalidis, and Michalis Vazirgiannis.
 
-We're excited to share that our paper has been accepted to **NeurIPS 2025**! The pretrained model weights and the dataset are now publicly available on Hugging Face.
+We're excited to share that our paper has been accepted to 🎉 **NeurIPS 2025** ! An online server, the trained model weights and the dataset are now publicly available on Hugging Face. 
 
 ## About the Project
 
